@@ -1,0 +1,40 @@
+[project]
+name = "debug-connector"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "bs4>=0.0.2",
+    "pillow>=11.3.0",
+    "playwright>=1.54.0",
+    "pypdf>=6.0.0",
+    "requests>=2.32.4",
+    "trafilatura>=2.0.0",
+]
+
+[tool.ruff]
+# Example configuration to select specific rules
+select = ["E", "F"] # Only enable errors (E) and flake8 (F) rules
+ignore = ["E501"]   # Ignore line too long errors
+
+[tool.pyright]
+# Example configuration to reduce diagnostics
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+
+[tool.basedpyright]
+typeCheckingMode = "basic"
+
+include = ["."]
+exclude = ["**/tests"]
+
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
