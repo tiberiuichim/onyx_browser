@@ -1,3 +1,4 @@
+import time
 import io
 import logging
 from collections.abc import Sequence
@@ -12,7 +13,7 @@ from pypdf import PdfReader
 from pypdf.errors import PdfStreamError
 from playwright.sync_api import BrowserContext, Playwright, sync_playwright
 
-from .html_utils import (
+from html_utils import (
     web_html_cleanup,
 )
 
@@ -120,10 +121,13 @@ def _handle_cookies(context: BrowserContext, url: str) -> None:
             try:
                 context.add_cookies([cookie])  # type: ignore
             except Exception as e:
-                logger.debug(f"Failed to add cookie {cookie['name']} for {domain}: {e}")
+                logger.debug(
+                    "Failed to add cookie %s for %s: %s", cookie["name"], domain, e
+                )
     except Exception:
         logger.exception(
-            f"Unexpected error while handling cookies for Web Connector with URL {url}"
+            "Unexpected error while handling cookies for Web Connector with URL %s",
+            url,
         )
 
 
@@ -236,7 +240,8 @@ def read_pdf_file(
             if not decrypt_success:
                 return "", metadata, []
         elif pdf_reader.is_encrypted:
-            logger.warning("No Password for an encrypted PDF, returning empty text.")
+            logger.warning(
+                "No Password for an encrypted PDF, returning empty text.")
             return "", metadata, []
 
         # Basic PDF metadata
@@ -263,8 +268,9 @@ def read_pdf_file(
                     img_bytes = img_byte_arr.getvalue()
 
                     image_name = (
-                        f"page_{page_num + 1}_image_{image_file_object.name}."
-                        f"{image.format.lower() if image.format else 'png'}"
+                        f"""page_{page_num + 1}
+                            _image_{image_file_object.name}."""
+                        f"""{image.format.lower() if image.format else "png"}"""
                     )
                     extracted_images.append((img_bytes, image_name))
 
@@ -391,7 +397,8 @@ class WebConnector:
             )
 
             last_modified = (
-                page_response.header_value("Last-Modified") if page_response else None
+                page_response.header_value(
+                    "Last-Modified") if page_response else None
             )
 
             final_url = page.url
@@ -400,12 +407,16 @@ class WebConnector:
                 initial_url = final_url
                 if initial_url in self.visited_links:
                     logger.info(
-                        f"{index}: {initial_url} redirected to {final_url} - already indexed"
+                        "%s: %S redirected to %s - already indexed",
+                        index,
+                        initial_url,
+                        final_url,
                     )
                     page.close()
                     return result
 
-                logger.info(f"{index}: {initial_url} redirected to {final_url}")
+                logger.info(f"""{index}: {initial_url}
+                            redirected to {final_url}""")
 
                 self.visited_links.add(initial_url)
 
@@ -414,7 +425,8 @@ class WebConnector:
                 scroll_attempts = 0
                 previous_height = page.evaluate("document.body.scrollHeight")
                 while scroll_attempts < WEB_CONNECTOR_MAX_SCROLL_ATTEMPTS:
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    page.evaluate(
+                        "window.scrollTo(0, document.body.scrollHeight)")
                     # wait for the content to load if we scrolled
                     page.wait_for_load_state("networkidle", timeout=30000)
                     time.sleep(0.5)  # let javascript run
@@ -429,7 +441,9 @@ class WebConnector:
             soup = BeautifulSoup(content, "html.parser")
 
             if page_response and str(page_response.status)[0] in ("4", "5"):
-                self.last_error = f"Skipped indexing {initial_url} due to HTTP {page_response.status} response"
+                self.last_error = f"""Skipped indexing {initial_url} due to HTTP {
+                    page_response.status
+                } response"""
                 logger.info(self.last_error)
                 # result.retry = True
                 return result
@@ -441,13 +455,16 @@ class WebConnector:
             the code below can extract text from within these iframes.
             """
             logger.debug(
-                f"{index}: Length of cleaned text {len(parsed_html.cleaned_text)}"
+                f"""{index}: Length of cleaned text {
+                    len(parsed_html.cleaned_text)}"""
             )
             if JAVASCRIPT_DISABLED_MESSAGE in parsed_html.cleaned_text:
-                iframe_count = page.frame_locator("iframe").locator("html").count()
+                iframe_count = page.frame_locator(
+                    "iframe").locator("html").count()
                 if iframe_count > 0:
                     iframe_texts = (
-                        page.frame_locator("iframe").locator("html").all_inner_texts()
+                        page.frame_locator("iframe").locator(
+                            "html").all_inner_texts()
                     )
                     document_text = "\n".join(iframe_texts)
                     """ 700 is the threshold value for the length of the text extracted
@@ -462,7 +479,7 @@ class WebConnector:
             hashed_text = hash((parsed_html.title, parsed_html.cleaned_text))
             if hashed_text in self.content_hashes:
                 logger.info(
-                    f"{index}: Skipping duplicate title + content for {initial_url}"
+                    f"""{index}: Skipping duplicate title + content for {initial_url}"""
                 )
                 return result
 
@@ -477,7 +494,8 @@ if __name__ == "__main__":
     # parse command line arguments
     import argparse
 
-    arg_parser = argparse.ArgumentParser(description="Web Connector Debug Tool")
+    arg_parser = argparse.ArgumentParser(
+        description="Web Connector Debug Tool")
     arg_parser.add_argument(
         "url",
         type=str,
