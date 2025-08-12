@@ -18,11 +18,13 @@ from html_utils import (
 )
 
 
-# from typing import Tuple
-# from enum import Enum
-# from typing import cast
-
 logger = logging.getLogger("debug")
+logger.setLevel(logging.DEBUG)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 eea_global_auth = {}
 
@@ -145,7 +147,7 @@ def start_playwright() -> tuple[Playwright, BrowserContext]:
 
     # Launch browser with more realistic settings
     browser = playwright.chromium.launch(
-        headless=True,
+        headless=False,
         args=[
             "--disable-blink-features=AutomationControlled",
             "--disable-features=IsolateOrigins,site-per-process",
@@ -240,8 +242,7 @@ def read_pdf_file(
             if not decrypt_success:
                 return "", metadata, []
         elif pdf_reader.is_encrypted:
-            logger.warning(
-                "No Password for an encrypted PDF, returning empty text.")
+            logger.warning("No Password for an encrypted PDF, returning empty text.")
             return "", metadata, []
 
         # Basic PDF metadata
@@ -321,7 +322,7 @@ class WebConnector:
             logger.warning("Unexpected credentials provided for Web Connector")
         return None
 
-    def _do_scrape(
+    def do_scrape(
         self,
         index: int,
         initial_url: str,
@@ -397,8 +398,7 @@ class WebConnector:
             )
 
             last_modified = (
-                page_response.header_value(
-                    "Last-Modified") if page_response else None
+                page_response.header_value("Last-Modified") if page_response else None
             )
 
             final_url = page.url
@@ -425,8 +425,7 @@ class WebConnector:
                 scroll_attempts = 0
                 previous_height = page.evaluate("document.body.scrollHeight")
                 while scroll_attempts < WEB_CONNECTOR_MAX_SCROLL_ATTEMPTS:
-                    page.evaluate(
-                        "window.scrollTo(0, document.body.scrollHeight)")
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                     # wait for the content to load if we scrolled
                     page.wait_for_load_state("networkidle", timeout=30000)
                     time.sleep(0.5)  # let javascript run
@@ -455,16 +454,13 @@ class WebConnector:
             the code below can extract text from within these iframes.
             """
             logger.debug(
-                f"""{index}: Length of cleaned text {
-                    len(parsed_html.cleaned_text)}"""
+                f"""{index}: Length of cleaned text {len(parsed_html.cleaned_text)}"""
             )
             if JAVASCRIPT_DISABLED_MESSAGE in parsed_html.cleaned_text:
-                iframe_count = page.frame_locator(
-                    "iframe").locator("html").count()
+                iframe_count = page.frame_locator("iframe").locator("html").count()
                 if iframe_count > 0:
                     iframe_texts = (
-                        page.frame_locator("iframe").locator(
-                            "html").all_inner_texts()
+                        page.frame_locator("iframe").locator("html").all_inner_texts()
                     )
                     document_text = "\n".join(iframe_texts)
                     """ 700 is the threshold value for the length of the text extracted
@@ -494,12 +490,13 @@ if __name__ == "__main__":
     # parse command line arguments
     import argparse
 
-    arg_parser = argparse.ArgumentParser(
-        description="Web Connector Debug Tool")
+    arg_parser = argparse.ArgumentParser(description="Web Connector Debug Tool")
     arg_parser.add_argument(
         "url",
         type=str,
         help="The URL to scrape using the Web Connector",
     )
     args = arg_parser.parse_args()
-    connector = WebConnector(base_url=args.url, scroll_before_scraping=True)
+    url = args.url
+    connector = WebConnector(base_url=url, scroll_before_scraping=True)
+    connector.do_scrape(0, url)
