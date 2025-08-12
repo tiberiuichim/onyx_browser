@@ -1,7 +1,7 @@
-import datetime
 import io
 import logging
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any, IO
 from urllib.parse import urlparse
 
@@ -15,6 +15,7 @@ from playwright.sync_api import BrowserContext, Playwright, sync_playwright
 from .html_utils import (
     web_html_cleanup,
 )
+
 
 # from typing import Tuple
 # from enum import Enum
