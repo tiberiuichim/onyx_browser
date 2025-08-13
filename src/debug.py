@@ -1,6 +1,6 @@
-import time
 import io
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
@@ -9,8 +9,8 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import BrowserContext, Playwright, sync_playwright
 
-from pdf_utils import read_pdf_file, is_pdf_content
 from html_utils import web_html_cleanup
+from pdf_utils import is_pdf_content, read_pdf_file
 
 
 logger = logging.getLogger("debug")
