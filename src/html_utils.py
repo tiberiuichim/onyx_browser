@@ -9,16 +9,7 @@ import trafilatura  # type: ignore
 from trafilatura.settings import use_config  # type: ignore
 import logging
 
-logging = logging.getLogger(__name__)
-
-# from onyx.configs.app_configs import HTML_BASED_CONNECTOR_TRANSFORM_LINKS_STRATEGY
-# from onyx.configs.app_configs import PARSE_WITH_TRAFILATURA
-# from onyx.configs.app_configs import WEB_CONNECTOR_IGNORED_CLASSES
-# from onyx.configs.app_configs import WEB_CONNECTOR_IGNORED_ELEMENTS
-# from onyx.file_processing.enums import HtmlBasedConnectorTransformLinksStrategy
-# from onyx.utils.logger import setup_logger
-
-# logger = setup_logger()
+logger = logging.getLogger("debug")
 
 MINTLIFY_UNWANTED = ["sticky", "hidden"]
 
@@ -151,7 +142,8 @@ def format_document_soup(
                 href_value = e.get("href", None)
                 # mostly for typing, having multiple hrefs is not valid HTML
                 link_href = (
-                    href_value[0] if isinstance(href_value, list) else href_value
+                    href_value[0] if isinstance(
+                        href_value, list) else href_value
                 )
             elif e.name == "/a":
                 link_href = None
@@ -216,6 +208,7 @@ def web_html_cleanup(
             [tag.extract() for tag in soup.find_all(undesired_tag)]
 
     soup_string = str(soup)
+    print(soup_string)
     page_text = ""
 
     if PARSE_WITH_TRAFILATURA:
@@ -224,7 +217,8 @@ def web_html_cleanup(
             if not page_text:
                 raise ValueError("Empty content returned by trafilatura.")
         except Exception as e:
-            logger.info(f"Trafilatura parsing failed: {e}. Falling back on bs4.")
+            logger.info(
+                f"Trafilatura parsing failed: {e}. Falling back on bs4.")
             page_text = format_document_soup(soup)
     else:
         page_text = format_document_soup(soup)

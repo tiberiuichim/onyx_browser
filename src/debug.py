@@ -1,28 +1,24 @@
 import time
 import io
 import logging
-from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any, IO
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
-from PIL import Image
-from pypdf import PdfReader
-from pypdf.errors import PdfStreamError
 from playwright.sync_api import BrowserContext, Playwright, sync_playwright
 
-from html_utils import (
-    web_html_cleanup,
-)
+from pdf_utils import read_pdf_file, is_pdf_content
+from html_utils import web_html_cleanup
 
 
 logger = logging.getLogger("debug")
 logger.setLevel(logging.DEBUG)
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
@@ -33,8 +29,6 @@ WEB_CONNECTOR_MAX_SCROLL_ATTEMPTS = 20
 IFRAME_TEXT_LENGTH_THRESHOLD = 700
 # Message indicating JavaScript is disabled, which often appears when scraping fails
 JAVASCRIPT_DISABLED_MESSAGE = "You have JavaScript disabled in your browser"
-
-TEXT_SECTION_SEPARATOR = "\n\n"
 
 # Define common headers that mimic a real browser
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
@@ -56,16 +50,6 @@ DEFAULT_HEADERS = {
     "Sec-CH-UA-Mobile": "?0",
     "Sec-CH-UA-Platform": '"macOS"',
 }
-
-# Common PDF MIME types
-PDF_MIME_TYPES = [
-    "application/pdf",
-    "application/x-pdf",
-    "application/acrobat",
-    "application/vnd.pdf",
-    "text/pdf",
-    "text/x-pdf",
-]
 
 
 def protected_url_check(url: str) -> None:
@@ -152,6 +136,14 @@ def start_playwright() -> tuple[Playwright, BrowserContext]:
             "--disable-blink-features=AutomationControlled",
             "--disable-features=IsolateOrigins,site-per-process",
             "--disable-site-isolation-trials",
+            "--disable-web-security",
+            # "--disable-dev-shm-usage",
+            # "--no-sandbox",
+            # "--disable-gpu",
+            # "--disable-infobars",
+            # "--disable-extensions",
+            # "--disable-notifications",
+            # "--disable-background-networking",
         ],
     )
 
@@ -202,93 +194,7 @@ def start_playwright() -> tuple[Playwright, BrowserContext]:
     """
     )
 
-    # if (
-    #     WEB_CONNECTOR_OAUTH_CLIENT_ID
-    #     and WEB_CONNECTOR_OAUTH_CLIENT_SECRET
-    #     and WEB_CONNECTOR_OAUTH_TOKEN_URL
-    # ):
-    #     client = BackendApplicationClient(client_id=WEB_CONNECTOR_OAUTH_CLIENT_ID)
-    #     oauth = OAuth2Session(client=client)
-    #     token = oauth.fetch_token(
-    #         token_url=WEB_CONNECTOR_OAUTH_TOKEN_URL,
-    #         client_id=WEB_CONNECTOR_OAUTH_CLIENT_ID,
-    #         client_secret=WEB_CONNECTOR_OAUTH_CLIENT_SECRET,
-    #     )
-    #     context.set_extra_http_headers(
-    #         {"Authorization": "Bearer {}".format(token["access_token"])}
-    #     )
-
     return playwright, context
-
-
-def read_pdf_file(
-    file: IO[Any], pdf_pass: str | None = None, extract_images: bool = False
-) -> tuple[str, dict[str, Any], Sequence[tuple[bytes, str]]]:
-    """
-    Returns the text, basic PDF metadata, and optionally extracted images.
-    """
-    metadata: dict[str, Any] = {}
-    extracted_images: list[tuple[bytes, str]] = []
-    try:
-        pdf_reader = PdfReader(file)
-
-        if pdf_reader.is_encrypted and pdf_pass is not None:
-            decrypt_success = False
-            try:
-                decrypt_success = pdf_reader.decrypt(pdf_pass) != 0
-            except Exception:
-                logger.error("Unable to decrypt pdf")
-
-            if not decrypt_success:
-                return "", metadata, []
-        elif pdf_reader.is_encrypted:
-            logger.warning("No Password for an encrypted PDF, returning empty text.")
-            return "", metadata, []
-
-        # Basic PDF metadata
-        if pdf_reader.metadata is not None:
-            for key, value in pdf_reader.metadata.items():
-                clean_key = key.lstrip("/")
-                if isinstance(value, str) and value.strip():
-                    metadata[clean_key] = value
-                elif isinstance(value, list) and all(
-                    isinstance(item, str) for item in value
-                ):
-                    metadata[clean_key] = ", ".join(value)
-
-        text = TEXT_SECTION_SEPARATOR.join(
-            page.extract_text() for page in pdf_reader.pages
-        )
-
-        if extract_images:
-            for page_num, page in enumerate(pdf_reader.pages):
-                for image_file_object in page.images:
-                    image = Image.open(io.BytesIO(image_file_object.data))
-                    img_byte_arr = io.BytesIO()
-                    image.save(img_byte_arr, format=image.format)
-                    img_bytes = img_byte_arr.getvalue()
-
-                    image_name = (
-                        f"""page_{page_num + 1}
-                            _image_{image_file_object.name}."""
-                        f"""{image.format.lower() if image.format else "png"}"""
-                    )
-                    extracted_images.append((img_bytes, image_name))
-
-        return text, metadata, extracted_images
-
-    except PdfStreamError:
-        logger.exception("Invalid PDF file")
-    except Exception:
-        logger.exception("Failed to read PDF")
-
-    return "", metadata, []
-
-
-def is_pdf_content(response: requests.Response) -> bool:
-    """Check if the response contains PDF content based on content-type header"""
-    content_type = response.headers.get("content-type", "").lower()
-    return any(pdf_type in content_type for pdf_type in PDF_MIME_TYPES)
 
 
 def _get_datetime_from_last_modified_header(last_modified: str) -> datetime | None:
@@ -398,7 +304,8 @@ class WebConnector:
             )
 
             last_modified = (
-                page_response.header_value("Last-Modified") if page_response else None
+                page_response.header_value(
+                    "Last-Modified") if page_response else None
             )
 
             final_url = page.url
@@ -425,7 +332,8 @@ class WebConnector:
                 scroll_attempts = 0
                 previous_height = page.evaluate("document.body.scrollHeight")
                 while scroll_attempts < WEB_CONNECTOR_MAX_SCROLL_ATTEMPTS:
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    page.evaluate(
+                        "window.scrollTo(0, document.body.scrollHeight)")
                     # wait for the content to load if we scrolled
                     page.wait_for_load_state("networkidle", timeout=30000)
                     time.sleep(0.5)  # let javascript run
@@ -437,6 +345,9 @@ class WebConnector:
                     scroll_attempts += 1
 
             content = page.content()
+            import pdb
+
+            pdb.set_trace()
             soup = BeautifulSoup(content, "html.parser")
 
             if page_response and str(page_response.status)[0] in ("4", "5"):
@@ -457,10 +368,12 @@ class WebConnector:
                 f"""{index}: Length of cleaned text {len(parsed_html.cleaned_text)}"""
             )
             if JAVASCRIPT_DISABLED_MESSAGE in parsed_html.cleaned_text:
-                iframe_count = page.frame_locator("iframe").locator("html").count()
+                iframe_count = page.frame_locator(
+                    "iframe").locator("html").count()
                 if iframe_count > 0:
                     iframe_texts = (
-                        page.frame_locator("iframe").locator("html").all_inner_texts()
+                        page.frame_locator("iframe").locator(
+                            "html").all_inner_texts()
                     )
                     document_text = "\n".join(iframe_texts)
                     """ 700 is the threshold value for the length of the text extracted
@@ -490,7 +403,8 @@ if __name__ == "__main__":
     # parse command line arguments
     import argparse
 
-    arg_parser = argparse.ArgumentParser(description="Web Connector Debug Tool")
+    arg_parser = argparse.ArgumentParser(
+        description="Web Connector Debug Tool")
     arg_parser.add_argument(
         "url",
         type=str,
